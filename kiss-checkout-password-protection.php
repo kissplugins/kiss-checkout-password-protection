@@ -1,12 +1,12 @@
 <?php
 /**
- * Plugin Name: Checkout Password Protection
+ * Plugin Name: KISS Checkout Password Protection plugin
  * Description: Password-protects WooCommerce checkout on non-production environments. Fails open — production domains are never protected. Admins bypass automatically.
  * Version: 1.0.0
- * Author: BinoidCBD
+ * Author: KISS Plugins | Hypercart
  * Requires Plugins: woocommerce
  *
- * SETUP: Edit the two constants below (CPP_PASSWORD and CPP_PRODUCTION_DOMAINS).
+ * SETUP: Edit the two constants below (CPP_PASSWORD_HASH and CPP_PRODUCTION_DOMAINS).
  *        This file travels with site clones, so cloned environments are automatically protected.
  *
  * BEHAVIOR:
@@ -29,12 +29,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 | Configuration — edit these values
 |--------------------------------------------------------------------------
 |
-| CPP_PASSWORD:           The password non-admin visitors must enter on checkout.
+| CPP_PASSWORD_HASH:      A wp_hash_password() hash of the password visitors must enter.
+|                         Generate with: echo wp_hash_password('your-chosen-password');
 | CPP_PRODUCTION_DOMAINS: Comma-separated list of production domains (exact match).
 |                         These domains are NEVER protected.
 |
 */
-define( 'CPP_PASSWORD', 'your-password-here' );
+define( 'CPP_PASSWORD_HASH', '$P$B...' ); // Replace with your actual hash — see instructions above
 define( 'CPP_PRODUCTION_DOMAINS', 'binoidcbd.com,bloomzhemp.com,binoid.com' );
 
 add_action( 'template_redirect', 'cpp_maybe_protect_checkout' );
@@ -63,20 +64,38 @@ function cpp_maybe_protect_checkout() {
         return;
     }
 
+    // Bail out if the password hash is still the placeholder value
+    if ( CPP_PASSWORD_HASH === '$P$B...' ) {
+        _doing_it_wrong( __FUNCTION__, 'CPP_PASSWORD_HASH is still the placeholder value. Generate a real hash — see plugin instructions.', '1.0.0' );
+        return;
+    }
+
     // Check for valid password cookie
-    $cookie_name = 'cpp_checkout_access';
-    if ( isset( $_COOKIE[ $cookie_name ] ) && $_COOKIE[ $cookie_name ] === md5( CPP_PASSWORD . wp_salt() ) ) {
+    $cookie_name  = 'cpp_checkout_access';
+    $cookie_token = hash_hmac( 'sha256', CPP_PASSWORD_HASH, wp_salt() );
+    if ( isset( $_COOKIE[ $cookie_name ] ) && hash_equals( $cookie_token, $_COOKIE[ $cookie_name ] ) ) {
         return;
     }
 
     // Handle password form submission
     if ( isset( $_POST['cpp_password'] ) ) {
-        if ( $_POST['cpp_password'] === CPP_PASSWORD ) {
-            setcookie( $cookie_name, md5( CPP_PASSWORD . wp_salt() ), 0, '/' );
+        $submitted = sanitize_text_field( wp_unslash( $_POST['cpp_password'] ) );
+
+        if ( ! wp_verify_nonce( $_POST['cpp_nonce'] ?? '', 'cpp_checkout_access' ) ) {
+            $error = true;
+        } elseif ( wp_check_password( $submitted, CPP_PASSWORD_HASH ) ) {
+            setcookie( $cookie_name, $cookie_token, [
+                'expires'  => 0,
+                'path'     => '/',
+                'secure'   => is_ssl(),
+                'httponly'  => true,
+                'samesite' => 'Strict',
+            ] );
             wp_safe_redirect( wc_get_checkout_url() );
             exit;
+        } else {
+            $error = true;
         }
-        $error = true;
     }
 
     // Show password form
@@ -113,6 +132,7 @@ function cpp_render_password_form( $has_error = false ) {
                 <p class="cpp-error">Incorrect password. Please try again.</p>
             <?php endif; ?>
             <form method="post">
+                <?php wp_nonce_field( 'cpp_checkout_access', 'cpp_nonce' ); ?>
                 <input type="password" name="cpp_password" placeholder="Password" autofocus>
                 <button type="submit">Access Checkout</button>
             </form>
