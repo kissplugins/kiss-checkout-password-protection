@@ -1,9 +1,9 @@
 <?php
 /**
- * Plugin Name: Checkout Password Protection
+ * Plugin Name: KISS Checkout Password Protection
  * Description: Password-protects WooCommerce checkout on non-production environments. Fails open — production domains are never protected. Admins bypass automatically.
  * Version: 1.0.0
- * Author: BinoidCBD
+ * Author: KISS Plugins | Hypercart
  * Requires Plugins: woocommerce
  *
  * SETUP: Edit the two constants below (CPP_PASSWORD_HASH and CPP_PRODUCTION_DOMAINS).
