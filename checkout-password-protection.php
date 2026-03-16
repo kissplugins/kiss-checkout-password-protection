@@ -45,14 +45,17 @@ function cpp_maybe_protect_checkout() {
         return;
     }
 
-    // Don't protect order-received (thank you) endpoint
-    if ( is_wc_endpoint_url( 'order-received' ) ) {
+    // Don't protect order-received (thank you) or order-pay endpoints
+    if ( is_wc_endpoint_url( 'order-received' ) || is_wc_endpoint_url( 'order-pay' ) ) {
         return;
     }
 
     // Production domains are never protected (fail open)
     $current_host = isset( $_SERVER['HTTP_HOST'] ) ? strtolower( trim( $_SERVER['HTTP_HOST'] ) ) : '';
-    $production_domains = array_map( 'trim', array_map( 'strtolower', explode( ',', CPP_PRODUCTION_DOMAINS ) ) );
+    $current_host = preg_replace( '/^www\./', '', $current_host );
+    $production_domains = array_map( function( $d ) {
+        return preg_replace( '/^www\./', '', strtolower( trim( $d ) ) );
+    }, explode( ',', CPP_PRODUCTION_DOMAINS ) );
 
     if ( in_array( $current_host, $production_domains, true ) ) {
         return;
@@ -70,7 +73,8 @@ function cpp_maybe_protect_checkout() {
     }
 
     // Handle password form submission
-    if ( isset( $_POST['cpp_password'] ) ) {
+    if ( isset( $_POST['cpp_password'] ) && isset( $_POST['_cpp_nonce'] )
+         && wp_verify_nonce( $_POST['_cpp_nonce'], 'cpp_checkout_password' ) ) {
         if ( $_POST['cpp_password'] === CPP_PASSWORD ) {
             setcookie( $cookie_name, md5( CPP_PASSWORD . wp_salt() ), 0, '/' );
             wp_safe_redirect( wc_get_checkout_url() );
@@ -113,6 +117,7 @@ function cpp_render_password_form( $has_error = false ) {
                 <p class="cpp-error">Incorrect password. Please try again.</p>
             <?php endif; ?>
             <form method="post">
+                <?php wp_nonce_field( 'cpp_checkout_password', '_cpp_nonce' ); ?>
                 <input type="password" name="cpp_password" placeholder="Password" autofocus>
                 <button type="submit">Access Checkout</button>
             </form>
