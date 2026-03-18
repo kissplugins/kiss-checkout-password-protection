@@ -37,7 +37,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 |                         These domains are NEVER protected.
 |
 */
-define( 'CPP_PASSWORD_HASH', '$P$B...' ); // Replace with your actual hash — see instructions above
+define( 'CPP_PASSWORD_HASH', '$P$BxHa9NlCa.ciwlBfIRInqYdrhaw78R0' );
 define( 'CPP_PRODUCTION_DOMAINS', 'binoidcbd.com,bloomzhemp.com,binoid.com' );
 
 add_action( 'template_redirect', 'cpp_maybe_protect_checkout' );
